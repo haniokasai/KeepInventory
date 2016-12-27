@@ -6,11 +6,12 @@ using System;
 using System.Collections.Generic;
 using MiNET.Items;
 using MiNET.Net;
+using MiNET.Worlds;
 
 namespace KeepInventory
 {
     [Plugin(PluginName = "KeepInventory", Description = "KeepInventory for MiNET", PluginVersion = "1.0", Author = "haniokasai")]
-    class KeepInventory : Plugin
+    public class KeepInventory : Plugin
     {
         protected static ILog _log = LogManager.GetLogger("KeepInventory");
 
@@ -27,12 +28,16 @@ namespace KeepInventory
         {
             var player = e.Player;
             player.HealthManager.PlayerTakeHit += Player_PlayerTakeHit;
+            player.Teleport();
         }
 
         private void Player_PlayerTakeHit(object sender, HealthEventArgs e)
         {
+
+           
             Player player = (Player)e.TargetEntity;//受けるほう
-            if (player.HealthManager.Health == 0)
+            player.BroadcastEntityEvent();
+            if (0 >= player.HealthManager.Health)
             {
                 //https://github.com/DarkLexFirst/SkyBlock-test/blob/25483451a6a2333da3b10bdf33ead546552df26f/SkyBlock%20betaRelease/SkyBlock%20betaRelease/Managers/InventoryManager.cs
                 string Inv = player.Inventory.GetSlots()[0].Id + "," + player.Inventory.GetSlots()[0].Metadata + "," + player.Inventory.GetSlots()[0].Count;
@@ -44,7 +49,24 @@ namespace KeepInventory
                 for (var i = 1; i < player.Inventory.Slots.Count; i++) { player.Inventory.Slots[i] = new ItemAir(); }
                 inv.Add(player.Username, Inv);
                 arm.Add(player.Username, Arm);
-                player.HandleMcpeDropItem(null);
+                player.Inventory.Clear();
+                player.HealthManager.TakeHit((Player)e.SourceEntity,100,player.HealthManager.LastDamageCause);
+                player.SendMessage("aaa");
+
+                if (player != null)
+                {
+                    player.SendUpdateAttributes();
+                    player.BroadcastEntityEvent();
+                }
+
+                player.BroadcastSetEntityData();
+                player.DespawnEntity();
+                var mcpeRespawn = McpeRespawn.CreateObject();
+                mcpeRespawn.x = player.SpawnPosition.X;
+                mcpeRespawn.y = player.SpawnPosition.Y;
+                mcpeRespawn.z = player.SpawnPosition.Z;
+                player.SendPackage(mcpeRespawn);
+                player.HealthManager.ResetHealth();
             }
 
         }
@@ -67,6 +89,14 @@ namespace KeepInventory
             player.Inventory.Chest = ItemFactory.GetItem(Convert.ToInt16(PlayerArm[2].Split(',')[0]), Convert.ToInt16(PlayerArm[2].Split(',')[1]));
             player.Inventory.Helmet = ItemFactory.GetItem(Convert.ToInt16(PlayerArm[3].Split(',')[0]), Convert.ToInt16(PlayerArm[3].Split(',')[1]));
             player.SendPlayerInventory();
+        }
+
+        [Command(Name = "gm")]
+        public void GameMode(Player player, int gameMode)
+        {
+            player.SetGameMode((GameMode)gameMode);
+
+            player.Level.BroadcastMessage($"{player.Username} changed to game mode {(GameMode)gameMode}.", type: MessageType.Raw);
         }
     }
 }
